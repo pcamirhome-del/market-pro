@@ -4,7 +4,7 @@ import {
   Menu, X, Bell, LogOut, Search, Plus, 
   Trash2, Printer, FileSpreadsheet, Settings as SettingsIcon,
   Package, ShoppingCart, List, Send, Users as UsersIcon, ChevronRight,
-  ShieldCheck, LayoutDashboard, Database, CreditCard, UserPlus
+  ShieldCheck, LayoutDashboard, Database, CreditCard, UserPlus, Wifi, WifiOff
 } from 'lucide-react';
 import { User, Company, Invoice, Sale, AppSettings, Product, Role, InvoiceItem } from './types';
 
@@ -30,6 +30,7 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isGlassTheme, setIsGlassTheme] = useState(true);
   const [dateTime, setDateTime] = useState(new Date());
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   const [users, setUsers] = useState<User[]>([
     { id: '1', username: 'admin', password: 'admin', role: 'مدير', phone: '0100000000', address: 'القاهرة', startDate: new Date().toLocaleDateString(), permissions: ['pos', 'createInvoice', 'orders', 'priceLists', 'stock', 'sales'] }
@@ -42,7 +43,15 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const timer = setInterval(() => setDateTime(new Date()), 1000);
-    return () => clearInterval(timer);
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, []);
 
   const handleLogin = (u: string, p: string) => {
@@ -78,7 +87,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className={`min-h-screen ${isGlassTheme ? 'bg-[#0f172a] text-white' : 'bg-gray-100 text-gray-900'} relative transition-all duration-500 overflow-x-hidden`}>
+    <div className={`min-h-screen ${isGlassTheme ? 'bg-[#0f172a] text-white' : 'bg-gray-100 text-gray-900'} relative transition-all duration-500 flex flex-col overflow-x-hidden`}>
       {isSidebarOpen && <div className="fixed inset-0 bg-black/60 z-40 backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)} />}
 
       <aside className={`fixed top-0 right-0 h-full w-72 glass-card z-50 transform transition-transform duration-500 ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'} shadow-2xl rounded-l-[2rem]`}>
@@ -123,15 +132,23 @@ const App: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-1 md:gap-2">
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full glass ${isOnline ? 'text-green-400' : 'text-red-400'}`}>
+             {isOnline ? <Wifi size={16} /> : <WifiOff size={16} />}
+             <span className="text-[10px] font-bold hidden sm:block">{isOnline ? 'متصل' : 'غير متصل'}</span>
+          </div>
           <button onClick={() => setIsGlassTheme(!isGlassTheme)} className="hidden sm:block p-2 text-[9px] font-black glass rounded-lg hover:bg-white/10">المظهر</button>
           <button className="p-2 hover:bg-white/10 rounded-xl relative"><Bell size={20} /><span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span></button>
           <button onClick={handleLogout} className="p-2 text-red-400 hover:bg-red-400/20 rounded-xl"><LogOut size={20} /></button>
         </div>
       </header>
 
-      <main className="p-4 md:p-10 max-w-[1600px] mx-auto animate-fade-in">
+      <main className="p-4 md:p-10 max-w-[1600px] mx-auto animate-fade-in flex-1 w-full">
         {renderView()}
       </main>
+
+      <footer className="p-6 text-center text-[11px] text-gray-500 font-bold border-t border-white/5 bg-black/20">
+         مع تحيات المطور Amir Lamay &copy; {new Date().getFullYear()}
+      </footer>
 
       <WelcomeToast username={currentUser?.username || ''} />
     </div>
@@ -185,6 +202,7 @@ const LoginScreen: React.FC<{ onLogin: (u: string, p: string) => void, programNa
             دخول النظام
           </button>
         </form>
+        <p className="mt-8 text-xs text-gray-500 font-bold">مع تحيات المطور Amir Lamay</p>
       </div>
     </div>
   );
@@ -287,7 +305,7 @@ const POSView: React.FC<{ settings: AppSettings, companies: Company[], onSaveSal
   );
 };
 
-// SETTINGS VIEW (FIXED)
+// SETTINGS VIEW (UPDATED)
 const SettingsView: React.FC<{ settings: AppSettings, setSettings: React.Dispatch<React.SetStateAction<AppSettings>>, users: User[], setUsers: React.Dispatch<React.SetStateAction<User[]>> }> = ({ settings, setSettings, users, setUsers }) => {
   const [showAddUser, setShowAddUser] = useState(false);
   const [newUser, setNewUser] = useState({ username: '', password: '', role: 'موظف' as Role, phone: '', address: '' });
@@ -306,6 +324,16 @@ const SettingsView: React.FC<{ settings: AppSettings, setSettings: React.Dispatc
     alert('تم إنشاء الحساب بنجاح');
   };
 
+  const updateMenuName = (key: string, value: string) => {
+    setSettings({
+      ...settings,
+      sideMenuNames: {
+        ...settings.sideMenuNames,
+        [key]: value
+      }
+    });
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
       <div className="glass-card p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] space-y-10">
@@ -313,6 +341,23 @@ const SettingsView: React.FC<{ settings: AppSettings, setSettings: React.Dispatc
         <div className="space-y-6">
           <div><label className="block text-[10px] font-black text-gray-500 mb-2 uppercase">اسم البرنامج</label><input type="text" className="w-full px-6 py-4 rounded-2xl iphone-input outline-none text-right" value={settings.programName} onChange={e => setSettings({...settings, programName: e.target.value})} /></div>
           <div><label className="block text-[10px] font-black text-gray-500 mb-2 uppercase">نسبة الربح المضافة %</label><input type="number" className="w-full px-6 py-4 rounded-2xl iphone-input outline-none text-right" value={settings.profitMargin} onChange={e => setSettings({...settings, profitMargin: Number(e.target.value)})} /></div>
+        </div>
+
+        <div className="pt-8 border-t border-white/5">
+          <h4 className="text-lg font-black mb-6 flex items-center gap-2"><List size={18} className="text-blue-400" /> تعديل مسميات القائمة الجانبية</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {Object.keys(settings.sideMenuNames).map(key => (
+              <div key={key}>
+                <label className="block text-[9px] text-gray-500 mb-1 font-bold uppercase">{key}</label>
+                <input 
+                  type="text" 
+                  className="w-full px-4 py-3 rounded-xl iphone-input outline-none text-right text-xs" 
+                  value={settings.sideMenuNames[key]} 
+                  onChange={e => updateMenuName(key, e.target.value)} 
+                />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -362,7 +407,7 @@ const SettingsView: React.FC<{ settings: AppSettings, setSettings: React.Dispatc
   );
 };
 
-// Shared Components remain mostly same but with translated texts
+// Shared Components
 const PriceListsView: React.FC<{ companies: Company[], setCompanies: React.Dispatch<React.SetStateAction<Company[]>>, nextCode: number, setNextCode: React.Dispatch<React.SetStateAction<number>> }> = ({ companies, setCompanies, nextCode, setNextCode }) => {
   const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState('');
