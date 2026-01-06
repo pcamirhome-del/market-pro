@@ -17,7 +17,14 @@ export interface Product {
   name: string;
   priceBeforeTax: number;
   priceAfterTax: number;
+  offerPrice?: number; // سعر العرض المخصص
   stock: number;
+  minThreshold?: number; // حد المخزون الأدنى
+}
+
+export interface Payment {
+  amount: number;
+  date: string;
 }
 
 export interface Company {
@@ -25,6 +32,7 @@ export interface Company {
   name: string;
   code: string;
   products: Product[];
+  createdAt: string; // تاريخ تسجيل القائمة
 }
 
 export interface InvoiceItem {
@@ -43,14 +51,14 @@ export interface Invoice {
   items: InvoiceItem[];
   totalValue: number;
   status: 'تم التسليم' | 'لم يتم التسليم';
-  payments: number[];
+  payments: Payment[]; // سجل الدفعات
   paidAmount: number;
   remaining: number;
 }
 
 export interface Sale {
   id: string;
-  date: string;
+  date: string; // ISO string
   items: InvoiceItem[];
   totalValue: number;
   received: number;
