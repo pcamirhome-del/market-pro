@@ -228,11 +228,11 @@ const App: React.FC = () => {
           <form onSubmit={(e: any) => { e.preventDefault(); handleLogin(e.target.username.value, e.target.password.value); }} className="space-y-6 relative z-10">
             <div className="space-y-1 text-right">
               <label className="text-[10px] text-gray-500 font-bold mr-2">اسم المستخدم</label>
-              <input name="username" type="text" placeholder="أدخل اسم المستخدم" required className="w-full px-6 py-4 rounded-2xl iphone-input outline-none text-right bg-white/5" />
+              <input name="username" type="text" defaultValue="admin" placeholder="أدخل اسم المستخدم" required className="w-full px-6 py-4 rounded-2xl iphone-input outline-none text-right bg-white/5" />
             </div>
             <div className="space-y-1 text-right">
               <label className="text-[10px] text-gray-500 font-bold mr-2">كلمة المرور</label>
-              <input name="password" type="password" placeholder="أدخل كلمة المرور" required className="w-full px-6 py-4 rounded-2xl iphone-input outline-none text-right bg-white/5" />
+              <input name="password" type="password" defaultValue="admin" placeholder="أدخل كلمة المرور" required className="w-full px-6 py-4 rounded-2xl iphone-input outline-none text-right bg-white/5" />
             </div>
             <button type="submit" className="w-full py-5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-2xl font-black text-xl shadow-[0_10px_30px_rgba(37,99,235,0.3)] hover:shadow-[0_15px_40px_rgba(37,99,235,0.5)] active:scale-95 transition-all mt-4">دخول النظام</button>
           </form>
@@ -682,7 +682,7 @@ const CreateInvoiceView: React.FC<any> = ({ companies, nextInvoiceId, setNextInv
              <span className="font-bold text-gray-400">إجمالي الطلبية المستحق:</span>
              <span className="text-4xl font-black">{total.toFixed(2)} <span className="text-xs">ج.م</span></span>
           </div>
-          <button onClick={handleSave} className="w-full py-6 bg-green-600 hover:bg-green-700 text-white rounded-2xl font-black text-2xl shadow-xl transition-all">حفظ وترحيل الطلبية للمراجعة</button>
+          <button handleSave={handleSave} className="w-full py-6 bg-green-600 hover:bg-green-700 text-white rounded-2xl font-black text-2xl shadow-xl transition-all">حفظ وترحيل الطلبية للمراجعة</button>
         </div>
       )}
     </div>
