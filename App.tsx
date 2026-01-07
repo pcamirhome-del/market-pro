@@ -9,7 +9,7 @@ import {
   MessageSquare, Sparkles, User as UserIcon, Bot
 } from 'lucide-react';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-import { getDatabase, ref, set, onValue } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+import { getDatabase, ref, set, onValue, push } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 import { GoogleGenAI } from "@google/genai";
 import { User, Company, Invoice, Sale, AppSettings, Product, Role, InvoiceItem, Payment } from './types';
 
@@ -236,7 +236,6 @@ const App: React.FC = () => {
             </div>
             <button type="submit" className="w-full py-5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-2xl font-black text-xl shadow-[0_10px_30px_rgba(37,99,235,0.3)] hover:shadow-[0_15px_40px_rgba(37,99,235,0.5)] active:scale-95 transition-all mt-4">دخول النظام</button>
           </form>
-          <div className="mt-8 text-[10px] text-gray-500 font-bold tracking-widest uppercase relative z-10">Market Pro S-Cloud v2.5</div>
         </div>
       </div>
     );
@@ -327,12 +326,26 @@ const AIChatBot: React.FC<{
   currentUser: User | null
 }> = ({ companies, sales, invoices, settings, currentUser }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<{ role: 'ai' | 'user', text: string }[]>([
-    { role: 'ai', text: 'أهلاً بك! أنا مساعد Market Pro الذكي. كيف يمكنني مساعدتك اليوم؟ يمكنك سؤالي عن المبيعات أو المخزون أو أي شيء يخص النظام.' }
-  ]);
+  const [messages, setMessages] = useState<{ role: 'ai' | 'user', text: string, timestamp?: string }[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Load chat history from Firebase
+  useEffect(() => {
+    const chatRef = ref(db, 'ai_chat_logs');
+    onValue(chatRef, (snap) => {
+      if (snap.exists()) {
+        const history = Object.values(snap.val()) as any[];
+        setMessages(history.slice(-20)); // Keep last 20 messages for UI performance
+      } else {
+        setMessages([{ 
+          role: 'ai', 
+          text: 'أهلاً بك! أنا مساعد Market Pro الذكي. كيف يمكنني مساعدتك اليوم؟ يمكنك سؤالي عن المبيعات أو المخزون أو أي شيء يخص النظام.' 
+        }]);
+      }
+    });
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -344,38 +357,62 @@ const AIChatBot: React.FC<{
     if (!input.trim() || isLoading) return;
 
     const userText = input.trim();
+    const timestamp = new Date().toISOString();
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', text: userText }]);
+    
+    // Save user message to Firebase
+    const chatRef = ref(db, 'ai_chat_logs');
+    push(chatRef, { role: 'user', text: userText, timestamp });
+
     setIsLoading(true);
 
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
-      // Prepare context summary for AI
+      // Prepare detailed context for AI
+      const stockSummary = companies.flatMap(c => (c.products || []).map(p => ({
+        company: c.name,
+        product: p.name,
+        stock: p.stock,
+        price: p.priceAfterTax
+      })));
+
+      const recentSalesSummary = sales.slice(-10).map(s => ({
+        date: s.date,
+        total: s.totalValue,
+        itemsCount: (s.items || []).length
+      }));
+
       const context = {
-        totalCompanies: companies.length,
-        totalSalesCount: sales.length,
-        totalSalesValue: sales.reduce((a, b) => a + (b.totalValue || 0), 0),
-        invoicesCount: invoices.length,
-        lowStockCompanies: companies.filter(c => c.products?.some(p => p.stock <= (p.minThreshold || 5))).length,
-        topSellingItems: "Many items available",
+        appState: {
+          totalCompanies: companies.length,
+          totalSales: sales.length,
+          totalRevenue: sales.reduce((a, b) => a + (b.totalValue || 0), 0),
+          invoicesCount: invoices.length,
+          lowStockItems: stockSummary.filter(s => s.stock <= 5).length
+        },
+        stockData: stockSummary.slice(0, 50), // Limited list for prompt size
+        recentSales: recentSalesSummary,
         programName: settings.programName,
-        userName: currentUser?.username || 'Guest',
-        userRole: currentUser?.role || 'User'
+        user: { name: currentUser?.username, role: currentUser?.role }
       };
 
       const prompt = `
-        You are an AI assistant for the "Market Pro" supermarket management system.
-        Context Information:
-        - Current App State Summary: ${JSON.stringify(context)}
-        - User Query: ${userText}
+        أنت المساعد الذكي لنظام "${settings.programName}" لإدارة السوبر ماركت.
+        مهمتك هي مساعدة المستخدم في فهم البيانات واتخاذ القرارات.
         
-        Rules:
-        1. Answer in Arabic.
-        2. Be professional, helpful, and concise.
-        3. Use the context to answer specific questions about the store's performance or stock if asked.
-        4. If the user asks for data not in the summary, explain that you have general overview access.
-        5. You represent the Market Pro intelligence.
+        بيانات النظام الحالية:
+        - ملخص عام: ${JSON.stringify(context.appState)}
+        - عينة من المخزون: ${JSON.stringify(context.stockData)}
+        - المبيعات الأخيرة: ${JSON.stringify(context.recentSales)}
+        
+        سؤال المستخدم: "${userText}"
+        
+        القواعد:
+        1. الرد باللغة العربية فقط بأسلوب مهني وودي.
+        2. استخدم البيانات المذكورة أعلاه للإجابة بدقة.
+        3. إذا سأل عن شيء غير موجود، اقترح عليه التوجه للقسم المختص في القائمة الجانبية.
+        4. كن مختصراً ومفيداً.
       `;
 
       const response = await ai.models.generateContent({
@@ -383,11 +420,14 @@ const AIChatBot: React.FC<{
         contents: prompt,
       });
 
-      const aiText = response.text || "عذراً، حدث خطأ في معالجة طلبك.";
-      setMessages(prev => [...prev, { role: 'ai', text: aiText }]);
+      const aiResponseText = response.text || "عذراً، حدث خطأ في معالجة طلبك.";
+      
+      // Save AI response to Firebase
+      push(chatRef, { role: 'ai', text: aiResponseText, timestamp: new Date().toISOString() });
+
     } catch (error) {
       console.error("AI Error:", error);
-      setMessages(prev => [...prev, { role: 'ai', text: "عذراً، لم أستطع الاتصال بالخادم الآن. يرجى المحاولة لاحقاً." }]);
+      push(chatRef, { role: 'ai', text: "عذراً، لم أستطع الاتصال بمحرك الذكاء الاصطناعي الآن. تأكد من اتصالك بالإنترنت.", timestamp: new Date().toISOString() });
     } finally {
       setIsLoading(false);
     }
@@ -439,7 +479,7 @@ const AIChatBot: React.FC<{
             <div className="flex gap-2">
               <input 
                 type="text" 
-                placeholder="اسأل أي شيء..." 
+                placeholder="اسأل أي شيء عن النظام..." 
                 className="flex-1 glass iphone-input px-4 py-3 rounded-xl text-sm outline-none"
                 value={input}
                 onChange={e => setInput(e.target.value)}
@@ -462,9 +502,6 @@ const AIChatBot: React.FC<{
         className="w-16 h-16 bg-gradient-to-tr from-blue-600 to-indigo-600 text-white rounded-3xl shadow-[0_15px_40px_rgba(37,99,235,0.4)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all relative group"
       >
         <Sparkles size={30} className="group-hover:rotate-12 transition-transform" />
-        {messages.length > 0 && !isOpen && (
-          <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-[10px] font-bold border-2 border-[#0f172a]">1</span>
-        )}
       </button>
     </div>
   );
